@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GoProDownloader;
+namespace GoProImporter;
 
 internal sealed class AppSettings
 {
@@ -20,10 +20,17 @@ internal sealed class AppSettings
             if (!File.Exists(SettingsPath)) return new AppSettings();
             string json = File.ReadAllText(SettingsPath);
             var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-            settings.RecentFolders = settings.RecentFolders.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).Take(MaxRecentFolders).ToList();
+            settings.RecentFolders = settings.RecentFolders
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxRecentFolders)
+                .ToList();
             return settings;
         }
-        catch { return new AppSettings(); }
+        catch
+        {
+            return new AppSettings();
+        }
     }
 
     public void AddRecentFolder(string folder)
@@ -32,7 +39,8 @@ internal sealed class AppSettings
         folder = folder.Trim();
         RecentFolders.RemoveAll(p => string.Equals(p, folder, StringComparison.OrdinalIgnoreCase));
         RecentFolders.Insert(0, folder);
-        if (RecentFolders.Count > MaxRecentFolders) RecentFolders.RemoveRange(MaxRecentFolders, RecentFolders.Count - MaxRecentFolders);
+        if (RecentFolders.Count > MaxRecentFolders)
+            RecentFolders.RemoveRange(MaxRecentFolders, RecentFolders.Count - MaxRecentFolders);
     }
 
     public void Save()
