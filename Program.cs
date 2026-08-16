@@ -1,4 +1,4 @@
-namespace GoProDownloader;
+namespace GoProImporter;
 
 static class Program
 {
