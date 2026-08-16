@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest an improvement or future workflow for GoPro Importer
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please check the README roadmap first; roadmap items are planned directions rather than committed release dates.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the workflow or frustration rather than only the feature itself.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like GoPro Importer to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: What do you do today, if anything?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Import workflow
+        - Verification / safety
+        - Camera discovery / connectivity
+        - User interface
+        - Logging / reporting
+        - Packaging / updates
+        - Stream Deck / integrations
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the README roadmap and existing issues for the same idea.
+          required: true
+        - label: This request does not require weakening verification or delete-safety protections.
+          required: true
