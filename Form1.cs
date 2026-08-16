@@ -78,7 +78,7 @@ public sealed class Form1 : Form
 
     private void SetupUi()
     {
-        Text = "GoPro Importer v1.6.4";
+        Text = "GoPro Importer v1.6.5";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(940, 720);
         MinimumSize = new Size(850, 650);
@@ -99,7 +99,7 @@ public sealed class Form1 : Form
 
         var version = new Label
         {
-            Text = "v1.6.4  •  verified LAN media import",
+            Text = "v1.6.5  •  verified LAN media import",
             ForeColor = TextMuted,
             AutoSize = true,
             Left = 20,
@@ -765,7 +765,6 @@ public sealed class Form1 : Form
                 {
                     _deletedCount++;
                     Log($"DELETE {fileName} OK ({cameraPath}) on attempt {attempt}");
-
                     await Task.Delay(500, ct);
                     return;
                 }
