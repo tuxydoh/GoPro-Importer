@@ -744,7 +744,7 @@ public sealed class Form1 : Form
         if (index < 0)
             return null;
 
-        string cameraPath = localPath[(index + marker.Length)..].TrimStart('/');
+        string cameraPath = localPath[(index + 1)..].TrimStart('/');
         return string.IsNullOrWhiteSpace(cameraPath) ? null : cameraPath;
     }
 
@@ -782,7 +782,6 @@ public sealed class Form1 : Form
 
         string line = $"{DateTime.Now:HH:mm:ss}  {msg}";
         txtLog.AppendText(line + Environment.NewLine);
-
         try
         {
             _sessionLog?.WriteLine(line);
