@@ -1,0 +1,99 @@
+name: Bug report
+description: Report a reproducible problem with GoPro Importer
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Please remove personal folder paths, private filenames, or other sensitive details from logs before posting them publicly.
+
+  - type: input
+    id: importer-version
+    attributes:
+      label: GoPro Importer version
+      placeholder: e.g. 1.6.5
+    validations:
+      required: true
+
+  - type: input
+    id: gopro-model
+    attributes:
+      label: GoPro model
+      placeholder: e.g. HERO13 Black
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: GoPro firmware version
+      placeholder: e.g. camera firmware version
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 24H2
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect GoPro Importer to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the shortest repeatable sequence you can.
+      placeholder: |
+        1. Connect to camera Wi-Fi
+        2. Open GoPro Importer
+        3. Enable ...
+        4. Click Start Import
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant log output
+      description: Paste only the relevant lines. Remove private paths or filenames if needed.
+      render: text
+
+  - type: dropdown
+    id: delete-enabled
+    attributes:
+      label: Was Delete from GoPro enabled?
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I tested with the latest available GoPro Importer release.
+          required: true
+        - label: I removed sensitive information from any logs included above.
+          required: true
+        - label: This report does not contain security exploit details; those should use private vulnerability reporting.
+          required: true
