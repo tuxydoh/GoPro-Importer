@@ -42,7 +42,6 @@ public sealed class Form1 : Form
     private readonly ProgressBar progress = new();
     private readonly Label lblStatus = new();
     private readonly Label lblDeleteWarning = new();
-
     private readonly CheckBox chkPhotos = new();
     private readonly CheckBox chkVideos = new();
     private readonly CheckBox chkLrv = new();
@@ -78,7 +77,7 @@ public sealed class Form1 : Form
 
     private void SetupUi()
     {
-        Text = "GoPro Importer v1.6";
+        Text = "GoPro Importer v1.6.1";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(940, 720);
         MinimumSize = new Size(850, 650);
@@ -99,7 +98,7 @@ public sealed class Form1 : Form
 
         var version = new Label
         {
-            Text = "v1.6  •  verified LAN media import",
+            Text = "v1.6.1  •  verified LAN media import",
             ForeColor = TextMuted,
             AutoSize = true,
             Left = 20,
@@ -123,30 +122,11 @@ public sealed class Form1 : Form
         StyleButton(btnBrowse, Surface2);
         btnBrowse.Click += (_, _) => BrowseForFolder();
 
-        chkPhotos.Text = "Photos";
-        chkPhotos.SetBounds(20, 220, 82, 24);
-        chkPhotos.Checked = true;
-        StyleCheckBox(chkPhotos);
-
-        chkVideos.Text = "Videos";
-        chkVideos.SetBounds(108, 220, 82, 24);
-        chkVideos.Checked = true;
-        StyleCheckBox(chkVideos);
-
-        chkLrv.Text = "LRV";
-        chkLrv.SetBounds(196, 220, 64, 24);
-        chkLrv.Checked = false;
-        StyleCheckBox(chkLrv);
-
-        chkThm.Text = "THM";
-        chkThm.SetBounds(266, 220, 68, 24);
-        chkThm.Checked = false;
-        StyleCheckBox(chkThm);
-
-        chkOther.Text = "Other";
-        chkOther.SetBounds(340, 220, 78, 24);
-        chkOther.Checked = true;
-        StyleCheckBox(chkOther);
+        SetupCheck(chkPhotos, "Photos", 20, true);
+        SetupCheck(chkVideos, "Videos", 108, true);
+        SetupCheck(chkLrv, "LRV", 196, false);
+        SetupCheck(chkThm, "THM", 266, false);
+        SetupCheck(chkOther, "Other", 340, true);
 
         chkByDate.Text = "Store by date (Last-Modified)";
         chkByDate.SetBounds(435, 220, 245, 24);
@@ -218,6 +198,14 @@ public sealed class Form1 : Form
         LayoutResponsive();
     }
 
+    private void SetupCheck(CheckBox box, string text, int left, bool isChecked)
+    {
+        box.Text = text;
+        box.SetBounds(left, 220, 82, 24);
+        box.Checked = isChecked;
+        StyleCheckBox(box);
+    }
+
     private Label MakeLabel(string text, int left, int top) => new()
     {
         Text = text,
@@ -271,7 +259,6 @@ public sealed class Form1 : Form
         txtUrl.Text = string.IsNullOrWhiteSpace(_settings.GoProUrl)
             ? "http://10.5.5.9/videos/DCIM/100GOPRO/"
             : _settings.GoProUrl;
-
         RefreshRecentFolders();
         cboFolder.Text = _settings.RecentFolders.Count > 0 ? _settings.RecentFolders[0] : @"E:\Gopro";
         chkByDate.Checked = true;
@@ -375,7 +362,7 @@ public sealed class Form1 : Form
         if (chkDelete.Checked)
         {
             chkVerify.Checked = true;
-            DialogResult confirmation = MessageBox.Show(
+            var confirmation = MessageBox.Show(
                 this,
                 "Delete from GoPro is enabled.\n\nFiles will be permanently removed from the camera only after the local copy is successfully verified. Files that fail verification will remain on the camera.\n\nContinue?",
                 "Confirm Camera Deletion",
@@ -662,13 +649,7 @@ public sealed class Form1 : Form
         {
             if (File.Exists(tempPath))
             {
-                try
-                {
-                    File.Delete(tempPath);
-                }
-                catch
-                {
-                }
+                try { File.Delete(tempPath); } catch { }
             }
         }
     }
@@ -709,16 +690,22 @@ public sealed class Form1 : Form
         }
 
         var sourceUri = new Uri(fileUrl);
-        string authority = sourceUri.GetLeftPart(UriPartial.Authority);
-        string deleteUrl = $"{authority}/gopro/media/delete/file?path={Uri.EscapeDataString(cameraPath)}";
+        var apiBase = new UriBuilder(sourceUri.Scheme, sourceUri.Host, 8080);
+        string deleteUrl =
+            $"{apiBase.Uri.GetLeftPart(UriPartial.Authority)}/gopro/media/delete/file" +
+            $"?path={Uri.EscapeDataString(cameraPath)}";
 
         try
         {
+            Log($"DELETE REQUEST {cameraPath} via {apiBase.Uri.GetLeftPart(UriPartial.Authority)}");
             using var deleteResp = await _http.GetAsync(deleteUrl, ct);
+            string responseBody = await deleteResp.Content.ReadAsStringAsync(ct);
+
             if (!deleteResp.IsSuccessStatusCode)
             {
                 _deleteErrorCount++;
-                Log($"DELETE {fileName} FAILED: camera returned {(int)deleteResp.StatusCode} {deleteResp.ReasonPhrase}. Camera copy retained.");
+                string body = string.IsNullOrWhiteSpace(responseBody) ? "<empty>" : responseBody.Trim();
+                Log($"DELETE {fileName} FAILED: camera returned {(int)deleteResp.StatusCode} {deleteResp.ReasonPhrase}. Response: {body}. Camera copy retained.");
                 return;
             }
 
@@ -744,7 +731,7 @@ public sealed class Form1 : Form
         if (index < 0)
             return null;
 
-        string cameraPath = localPath[(index + 1)..].TrimStart('/');
+        string cameraPath = localPath[(index + marker.Length)..].TrimStart('/');
         return string.IsNullOrWhiteSpace(cameraPath) ? null : cameraPath;
     }
 
@@ -762,13 +749,11 @@ public sealed class Form1 : Form
         string ext = Path.GetExtension(path);
         int counter = 1;
         string candidate;
-
         do
         {
             candidate = Path.Combine(dir ?? string.Empty, $"{name} ({counter++}){ext}");
         }
         while (File.Exists(candidate));
-
         return candidate;
     }
 
@@ -782,13 +767,7 @@ public sealed class Form1 : Form
 
         string line = $"{DateTime.Now:HH:mm:ss}  {msg}";
         txtLog.AppendText(line + Environment.NewLine);
-        try
-        {
-            _sessionLog?.WriteLine(line);
-        }
-        catch
-        {
-        }
+        try { _sessionLog?.WriteLine(line); } catch { }
     }
 
     private void SetStatus(string msg)
@@ -798,7 +777,6 @@ public sealed class Form1 : Form
             BeginInvoke(new Action(() => SetStatus(msg)));
             return;
         }
-
         lblStatus.Text = msg;
     }
 
@@ -809,7 +787,6 @@ public sealed class Form1 : Form
             BeginInvoke(new Action(() => SetProgress(value, max)));
             return;
         }
-
         progress.Maximum = Math.Max(1, max);
         progress.Value = Math.Min(value, progress.Maximum);
     }
