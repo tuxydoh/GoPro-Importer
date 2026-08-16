@@ -1,4 +1,4 @@
-name: Build GoPro Importer
+name: Build and Release GoPro Importer
 
 on:
   push:
@@ -6,17 +6,71 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v6
+
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
+
+      - name: Read project version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content GoProImporter.csproj
+          $version = ($project.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Could not read <Version> from GoProImporter.csproj"
+          }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TAG=v$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Restore
         run: dotnet restore GoProImporter.csproj
+
       - name: Build
         run: dotnet build GoProImporter.csproj -c Release --no-restore
+
+      - name: Publish Windows x64 self-contained build
+        if: github.event_name == 'push'
+        run: >-
+          dotnet publish GoProImporter.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -o publish/win-x64
+
+      - name: Package Windows build
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $zip = "GoProImporter-v$env:APP_VERSION-win-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "publish/win-x64/*" -DestinationPath $zip -Force
+          "RELEASE_ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create GitHub Release if this version is new
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:RELEASE_TAG already exists; skipping release creation."
+            exit 0
+          }
+
+          gh release create $env:RELEASE_TAG $env:RELEASE_ZIP `
+            --target $env:GITHUB_SHA `
+            --title "GoPro Importer $env:APP_VERSION" `
+            --generate-notes
