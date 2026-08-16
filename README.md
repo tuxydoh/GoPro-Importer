@@ -1,4 +1,4 @@
-# GoPro Importer v1.6.3
+# GoPro Importer v1.6.5
 
 GoPro Importer is an unofficial Windows utility for importing media from a GoPro over the camera's local HTTP/Wi-Fi interface.
 
@@ -13,7 +13,8 @@ GoPro Importer is an unofficial Windows utility for importing media from a GoPro
 - Recursive GoPro media crawling
 - Separate Photos, Videos, LRV, THM, and Other filters
 - Duplicate detection using camera-reported file size
-- Verification of completed local files against camera-reported `Content-Length`
+- Verification of newly completed local files against camera-reported `Content-Length`
+- SHA-256 comparison of pre-existing local files against camera contents before destructive deletion
 - Optional **Delete from GoPro after successful verification** workflow
 - Automatic retry/backoff for transient camera delete failures
 - Per-session transaction log saved in the destination folder
@@ -26,7 +27,7 @@ GoPro Importer is an unofficial Windows utility for importing media from a GoPro
 
 For most users, use the latest package from **GitHub Releases**. The Windows x64 release is self-contained, so Visual Studio and a separate .NET installation are not required.
 
-1. Download `GoProImporter-v1.6.3-win-x64.zip` from Releases.
+1. Download `GoProImporter-v1.6.5-win-x64.zip` from Releases.
 2. Extract the ZIP to a folder of your choice.
 3. Run `GoProImporter.exe`.
 4. Connect your computer to the GoPro's Wi-Fi network before importing.
@@ -39,7 +40,11 @@ Windows may display a SmartScreen warning because the executable is not currentl
 
 Deletion is opt-in, starts disabled every time the application launches, and requires confirmation before an import begins. A camera file is only submitted for deletion after its corresponding local copy passes verification.
 
-The current verification step compares the completed local file size with the camera-reported `Content-Length`. If the camera does not report a size, the sizes do not match, or all delete attempts fail, the camera copy is retained.
+For a file downloaded during the current import, verification requires the completed local file size to match the camera-reported `Content-Length`. The download is first completed to a `.part` file and closed before it is moved into place.
+
+For a file that already exists locally, matching filename and size are **not enough to authorize camera deletion**. When Delete from GoPro is enabled, GoPro Importer reads both the existing local file and the camera file and requires their SHA-256 hashes to match before deletion is attempted. This additional comparison can take roughly as long as reading the file from the camera again, but it prevents deletion based only on an accidental same-size match.
+
+If the camera does not report a size, local and remote sizes differ, SHA-256 comparison fails, or all delete attempts fail, the camera copy is retained.
 
 Transient camera delete errors are retried with increasing delays. A failed delete never removes the verified local copy.
 
@@ -71,11 +76,13 @@ To publish a self-contained Windows x64 build from the command line:
 dotnet publish GoProImporter.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-The repository also includes GitHub Actions automation for Windows builds and versioned release packages.
+The repository also includes GitHub Actions automation for Windows builds and versioned release packages. Pull-request builds run with read-only repository permissions; release write permissions are isolated to trusted pushes to `main`.
 
 ## Contributing
 
 Issues and pull requests are welcome. For bug reports, include the GoPro model, firmware version, relevant log lines, and steps to reproduce. Please remove personal paths or filenames from logs if you do not want them public.
+
+For security vulnerabilities, follow [SECURITY.md](SECURITY.md) and avoid posting exploit details publicly.
 
 ## License
 
