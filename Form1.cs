@@ -77,7 +77,7 @@ public sealed class Form1 : Form
 
     private void SetupUi()
     {
-        Text = "GoPro Importer v1.6.2";
+        Text = "GoPro Importer v1.6.3";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(940, 720);
         MinimumSize = new Size(850, 650);
@@ -98,7 +98,7 @@ public sealed class Form1 : Form
 
         var version = new Label
         {
-            Text = "v1.6.2  •  verified LAN media import",
+            Text = "v1.6.3  •  verified LAN media import",
             ForeColor = TextMuted,
             AutoSize = true,
             Left = 20,
@@ -691,37 +691,73 @@ public sealed class Form1 : Form
 
         var sourceUri = new Uri(fileUrl);
         var apiBase = new UriBuilder(sourceUri.Scheme, sourceUri.Host, 8080);
+        string authority = apiBase.Uri.GetLeftPart(UriPartial.Authority);
         string encodedCameraPath = string.Join("/", cameraPath.Split('/').Select(Uri.EscapeDataString));
-        string deleteUrl =
-            $"{apiBase.Uri.GetLeftPart(UriPartial.Authority)}/gopro/media/delete/file" +
-            $"?path={encodedCameraPath}";
+        string deleteUrl = $"{authority}/gopro/media/delete/file?path={encodedCameraPath}";
 
-        try
+        const int maxAttempts = 4;
+        int[] retryDelaysMs = { 750, 1500, 3000 };
+        string lastFailure = "unknown camera response";
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            Log($"DELETE REQUEST {cameraPath} via {apiBase.Uri.GetLeftPart(UriPartial.Authority)}");
-            using var deleteResp = await _http.GetAsync(deleteUrl, ct);
-            string responseBody = await deleteResp.Content.ReadAsStringAsync(ct);
+            ct.ThrowIfCancellationRequested();
 
-            if (!deleteResp.IsSuccessStatusCode)
+            try
             {
-                _deleteErrorCount++;
-                string body = string.IsNullOrWhiteSpace(responseBody) ? "<empty>" : responseBody.Trim();
-                Log($"DELETE {fileName} FAILED: camera returned {(int)deleteResp.StatusCode} {deleteResp.ReasonPhrase}. Response: {body}. Camera copy retained.");
-                return;
-            }
+                Log($"DELETE REQUEST {cameraPath} via {authority} (attempt {attempt}/{maxAttempts})");
+                using var deleteResp = await _http.GetAsync(deleteUrl, ct);
+                string responseBody = await deleteResp.Content.ReadAsStringAsync(ct);
 
-            _deletedCount++;
-            Log($"DELETE {fileName} OK ({cameraPath})");
+                if (deleteResp.IsSuccessStatusCode)
+                {
+                    _deletedCount++;
+                    Log($"DELETE {fileName} OK ({cameraPath}) on attempt {attempt}");
+
+                    // Give the camera a moment to settle its media database before the next delete.
+                    await Task.Delay(500, ct);
+                    return;
+                }
+
+                string body = string.IsNullOrWhiteSpace(responseBody) ? "<empty>" : responseBody.Trim();
+                lastFailure = $"camera returned {(int)deleteResp.StatusCode} {deleteResp.ReasonPhrase}. Response: {body}";
+
+                bool transientStatus =
+                    (int)deleteResp.StatusCode == 400 ||
+                    (int)deleteResp.StatusCode == 408 ||
+                    (int)deleteResp.StatusCode == 429 ||
+                    (int)deleteResp.StatusCode >= 500;
+
+                if (!transientStatus || attempt == maxAttempts)
+                    break;
+
+                int delayMs = retryDelaysMs[attempt - 1];
+                Log($"DELETE {fileName} RETRY: {lastFailure}. Waiting {delayMs} ms before retry {attempt + 1}/{maxAttempts}.");
+                await Task.Delay(delayMs, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                lastFailure = ex.Message;
+                if (attempt == maxAttempts)
+                    break;
+
+                int delayMs = retryDelaysMs[attempt - 1];
+                Log($"DELETE {fileName} RETRY: request error: {ex.Message}. Waiting {delayMs} ms before retry {attempt + 1}/{maxAttempts}.");
+                await Task.Delay(delayMs, ct);
+            }
+            catch (Exception ex)
+            {
+                lastFailure = ex.Message;
+                break;
+            }
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _deleteErrorCount++;
-            Log($"DELETE {fileName} FAILED: {ex.Message}. Camera copy retained.");
-        }
+
+        _deleteErrorCount++;
+        Log($"DELETE {fileName} FAILED after {maxAttempts} attempts: {lastFailure}. Camera copy retained.");
     }
 
     private static string? GetCameraMediaPath(string fileUrl)
