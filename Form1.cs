@@ -77,7 +77,7 @@ public sealed class Form1 : Form
 
     private void SetupUi()
     {
-        Text = "GoPro Importer v1.6.1";
+        Text = "GoPro Importer v1.6.2";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(940, 720);
         MinimumSize = new Size(850, 650);
@@ -98,7 +98,7 @@ public sealed class Form1 : Form
 
         var version = new Label
         {
-            Text = "v1.6.1  •  verified LAN media import",
+            Text = "v1.6.2  •  verified LAN media import",
             ForeColor = TextMuted,
             AutoSize = true,
             Left = 20,
@@ -691,9 +691,10 @@ public sealed class Form1 : Form
 
         var sourceUri = new Uri(fileUrl);
         var apiBase = new UriBuilder(sourceUri.Scheme, sourceUri.Host, 8080);
+        string encodedCameraPath = string.Join("/", cameraPath.Split('/').Select(Uri.EscapeDataString));
         string deleteUrl =
             $"{apiBase.Uri.GetLeftPart(UriPartial.Authority)}/gopro/media/delete/file" +
-            $"?path={Uri.EscapeDataString(cameraPath)}";
+            $"?path={encodedCameraPath}";
 
         try
         {
