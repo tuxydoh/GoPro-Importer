@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -77,7 +78,7 @@ public sealed class Form1 : Form
 
     private void SetupUi()
     {
-        Text = "GoPro Importer v1.6.3";
+        Text = "GoPro Importer v1.6.4";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(940, 720);
         MinimumSize = new Size(850, 650);
@@ -98,7 +99,7 @@ public sealed class Form1 : Form
 
         var version = new Label
         {
-            Text = "v1.6.3  •  verified LAN media import",
+            Text = "v1.6.4  •  verified LAN media import",
             ForeColor = TextMuted,
             AutoSize = true,
             Left = 20,
@@ -364,7 +365,7 @@ public sealed class Form1 : Form
             chkVerify.Checked = true;
             var confirmation = MessageBox.Show(
                 this,
-                "Delete from GoPro is enabled.\n\nFiles will be permanently removed from the camera only after the local copy is successfully verified. Files that fail verification will remain on the camera.\n\nContinue?",
+                "Delete from GoPro is enabled.\n\nFiles will be permanently removed from the camera only after the local copy is successfully verified. Existing local copies are SHA-256 compared against the camera before deletion. Files that fail verification will remain on the camera.\n\nContinue?",
                 "Confirm Camera Deletion",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
@@ -592,10 +593,27 @@ public sealed class Form1 : Form
 
                 if (chkVerify.Checked)
                 {
-                    _verifiedCount++;
-                    Log($"VERIFY {fileName} OK (existing local copy, {info.Length:N0} bytes)");
                     if (chkDelete.Checked)
+                    {
+                        SetStatus($"SHA-256 verifying existing copy: {fileName}");
+                        Log($"VERIFY {fileName} SHA-256 comparing existing local copy to camera...");
+                        var hashVerification = await VerifyExistingFileBySha256Async(targetPath, resp, ct);
+                        if (!hashVerification.Verified)
+                        {
+                            _verificationFailureCount++;
+                            Log($"VERIFY {fileName} FAILED: {hashVerification.Message}. Camera copy retained.");
+                            return;
+                        }
+
+                        _verifiedCount++;
+                        Log($"VERIFY {fileName} OK: {hashVerification.Message}");
                         await TryDeleteCameraFileAsync(fileUrl, fileName, ct);
+                    }
+                    else
+                    {
+                        _verifiedCount++;
+                        Log($"VERIFY {fileName} OK (existing local copy, {info.Length:N0} bytes match camera)");
+                    }
                 }
 
                 return;
@@ -679,6 +697,40 @@ public sealed class Form1 : Form
         return true;
     }
 
+    private static async Task<(bool Verified, string Message)> VerifyExistingFileBySha256Async(
+        string localPath,
+        HttpResponseMessage cameraResponse,
+        CancellationToken ct)
+    {
+        if (!File.Exists(localPath))
+            return (false, "existing local file disappeared before hash verification");
+
+        long? remoteLength = cameraResponse.Content.Headers.ContentLength;
+        var localInfo = new FileInfo(localPath);
+        if (!remoteLength.HasValue)
+            return (false, "camera did not report a file size for SHA-256 verification");
+
+        if (localInfo.Length != remoteLength.Value)
+            return (false, $"local size {localInfo.Length:N0} bytes does not match camera size {remoteLength.Value:N0} bytes");
+
+        await using var localStream = new FileStream(
+            localPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 1024 * 1024,
+            useAsync: true);
+        await using Stream cameraStream = await cameraResponse.Content.ReadAsStreamAsync(ct);
+
+        byte[] localHash = await SHA256.HashDataAsync(localStream, ct);
+        byte[] cameraHash = await SHA256.HashDataAsync(cameraStream, ct);
+
+        if (!CryptographicOperations.FixedTimeEquals(localHash, cameraHash))
+            return (false, "SHA-256 mismatch between existing local file and camera file");
+
+        return (true, $"SHA-256 match ({Convert.ToHexString(localHash)[..12]}…, {localInfo.Length:N0} bytes)");
+    }
+
     private async Task TryDeleteCameraFileAsync(string fileUrl, string fileName, CancellationToken ct)
     {
         string? cameraPath = GetCameraMediaPath(fileUrl);
@@ -714,7 +766,6 @@ public sealed class Form1 : Form
                     _deletedCount++;
                     Log($"DELETE {fileName} OK ({cameraPath}) on attempt {attempt}");
 
-                    // Give the camera a moment to settle its media database before the next delete.
                     await Task.Delay(500, ct);
                     return;
                 }
