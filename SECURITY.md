@@ -6,13 +6,15 @@ Security fixes are currently targeted at the latest released version of GoPro Im
 
 ## Reporting a security issue
 
-Please avoid posting sensitive information such as local file paths, private filenames, network credentials, or personal data in a public issue.
+Please **do not open a public issue for a suspected vulnerability** when the report includes exploit details, private filenames, local file paths, network credentials, or personal data.
 
-If you discover a security issue, open a GitHub issue with the minimum information needed to describe the problem and clearly mark it as security-related. If the report requires sharing sensitive details, contact the repository owner privately through GitHub before posting those details publicly.
+After this repository is public, use GitHub's **Report a vulnerability** / private vulnerability reporting feature when it is available for this repository. If private vulnerability reporting is not available, contact the repository owner privately through the GitHub profile before publishing technical details.
+
+Ordinary non-security bugs can continue to use public GitHub Issues.
 
 ## Local data
 
-GoPro Importer stores its settings locally under the current Windows user's Local Application Data folder. Session logs are written to the selected destination folder and can contain local destination paths and GoPro media filenames.
+GoPro Importer stores its settings locally under the current Windows user's Local Application Data folder. Session logs are written to the selected destination folder and can contain local destination paths and GoPro media filenames. Review logs before attaching them to public issues.
 
 ## Destructive operations
 
